@@ -13,13 +13,17 @@
 #define MIN_INTERNAL_TEMP 15
 #define MAX_INTERNAL_TEMP 30
 
+// Prototypes
+float getAverage(float list[]);
+
 //Sensors
 Adafruit_BMP280 bmp;
 Adafruit_MAX31855 therm(14, 10, 12);
 
 //Pins
 int led = 13;
-int heaters = 22;
+int heaters = -1; //TODO: Get actual values
+int gps = -1;
 
 //Data Buffers
 float pressureBuffer[COLLECTION_POINTS];
@@ -35,6 +39,7 @@ void setup() {
   Serial.begin(9600);
   pinMode(led, OUTPUT);
   pinMode(heaters, OUTPUT);
+  pinMode(gps, INPUT);
 
   loopNum = 0;
   buffersReady = false;
@@ -56,12 +61,14 @@ void loop() {
   }
 
   handleHeaters();
-
   updateBuffers(loopNum);
+
   loopNum = (loopNum + 1) % COLLECTION_POINTS;
   if (loopNum == 0) {
     buffersReady = true;
   }
+
+  
 
   delay(LOOP_DELAY);
 }
