@@ -27,7 +27,7 @@ bool buffersReady;
 void setup() {
   Serial.begin(9600);
   pinMode(led, OUTPUT);
-  pinMode(gps, INPUT);
+//  pinMode(gps, INPUT);
   loopNum = 0;
   buffersReady = false;
   
