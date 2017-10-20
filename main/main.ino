@@ -1,12 +1,14 @@
+#include <Adafruit_BNO055.h>
 #include <Wire.h>
 #include <SPI.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h>
 #include <Adafruit_MAX31855.h>
+#include <utility/imumaths.h>
 
 //Data will be outputted every COLLECTION_POINTS * LOOP_DELAY milliseconds
-#define COLLECTION_POINTS 10
-#define LOOP_DELAY 100
+#define COLLECTION_POINTS 25
+#define LOOP_DELAY 30
 #define DEBUG true
 
 //TODO: Get actual values. Should be in celsius.
@@ -19,6 +21,7 @@ float getAverage(float list[]);
 //Sensors
 Adafruit_BMP280 bmp;
 Adafruit_MAX31855 therm(14, 10, 12);
+Adafruit_BNO055 bno = Adafruit_BNO055();
 
 //Pins
 int led = 13;
@@ -30,6 +33,10 @@ float pressureBuffer[COLLECTION_POINTS];
 float internalTempBuffer[COLLECTION_POINTS];
 float externalTempBuffer[COLLECTION_POINTS];
 float altitudeBuffer[COLLECTION_POINTS];
+//x - roll, y - pitch, z - yaw
+float rollBuffer[COLLECTION_POINTS];
+float pitchBuffer[COLLECTION_POINTS];
+float yawBuffer[COLLECTION_POINTS];
 
 //Housekeeping Variables
 int loopNum;
@@ -47,6 +54,12 @@ void setup() {
   if (!bmp.begin()) {  
     Serial.println(F("Could not find a valid BMP280 sensor, check wiring!"));
     while (true);
+  }
+  if(!bno.begin())
+  {
+    /* There was a problem detecting the BNO055 ... check your connections */
+    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+    while(1);
   }
   therm.begin();
 }
@@ -88,6 +101,10 @@ void updateBuffers(int loopNum) {
     externalTempBuffer[loopNum] = therm.readCelsius();
     pressureBuffer[loopNum] = bmp.readPressure() / 1000;//Readings are in Pa
     altitudeBuffer[loopNum] = bmp.readAltitude(1013.25);// TODO: this should be adjusted
+    imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+    rollBuffer[loopNum] = euler.x();
+    pitchBuffer[loopNum] = euler.y();
+    yawBuffer[loopNum] = euler.z();
 }
 
 float getInternalTemp() {
@@ -106,6 +123,18 @@ float getAltitude() {
   return getAverage(altitudeBuffer);
 }
 
+float getRollAngle() {
+  return getAverage(rollBuffer);
+}
+
+float getPitchAngle() {
+  return getAverage(pitchBuffer);
+}
+
+float getYawAngle() {
+  return getAverage(yawBuffer);
+}
+
 float getAverage(float list[]) {
   float sum = 0;
   int len = sizeof(list) / sizeof(float);
@@ -116,21 +145,35 @@ float getAverage(float list[]) {
 }
 
 void outputDebugStatus() {
+    Serial.println("===============================");
     Serial.print("Internal Temperature = ");
     Serial.print(getInternalTemp());
-    Serial.println(" *C\n");
+    Serial.println(" *C");
 
     Serial.print("External Temperature = ");
     Serial.print(getExternalTemp());
-    Serial.println(" *C\n");
+    Serial.println(" *C");
 
     Serial.print("Pressure = ");
     Serial.print(getPressure());
-    Serial.println(" kPa\n");
+    Serial.println(" kPa");
 
     Serial.print("Altitude = ");
     Serial.print(getAltitude()); 
-    Serial.println(" m\n");
+    Serial.println(" m");
+
+    Serial.print("Roll = ");
+    Serial.print(getRollAngle());
+    Serial.println("*");
+
+    Serial.print("Pitch = ");
+    Serial.print(getPitchAngle());
+    Serial.println("*");
+
+    Serial.print("Yaw = ");
+    Serial.print(getYawAngle());
+    Serial.println("*");
+    Serial.println("===============================");
 }
 
 
