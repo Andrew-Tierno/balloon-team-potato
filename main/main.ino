@@ -5,6 +5,8 @@
 #include <Adafruit_BMP280.h>
 #include <Adafruit_MAX31855.h>
 #include <utility/imumaths.h>
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>
 
 //Data will be outputted every COLLECTION_POINTS * LOOP_DELAY milliseconds
 #define COLLECTION_POINTS 25
@@ -18,15 +20,20 @@
 // Prototypes
 float getAverage(float list[]);
 
+//Pins
+int led = -1;
+int heaters = -1; //TODO: Get actual values
+int gpsRX = 7;
+int gpsTX = 8;
+int GPSBaud = 9600;
+
 //Sensors
 Adafruit_BMP280 bmp;
-Adafruit_MAX31855 therm(14, 10, 12);
+Adafruit_MAX31855 therm(13, 21, 6);
 Adafruit_BNO055 bno = Adafruit_BNO055();
+TinyGPSPlus gps;
+SoftwareSerial gpsSS(gpsRX, gpsTX);
 
-//Pins
-int led = 13;
-int heaters = -1; //TODO: Get actual values
-int gps = -1;
 
 //Data Buffers
 float pressureBuffer[COLLECTION_POINTS];
@@ -44,14 +51,14 @@ bool buffersReady;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(led, OUTPUT);
-<<<<<<< HEAD
+  //pinMode(led, OUTPUT);
+//<<<<<<< HEAD
 //  pinMode(gps, INPUT);
-=======
+//=======
   pinMode(heaters, OUTPUT);
-  pinMode(gps, INPUT);
+  
 
->>>>>>> dcdf4817144ccf3eca1ee145283ac59d317f1e8c
+//>>>>>>> dcdf4817144ccf3eca1ee145283ac59d317f1e8c
   loopNum = 0;
   buffersReady = false;
   
@@ -66,6 +73,9 @@ void setup() {
     while(1);
   }
   therm.begin();
+
+  // GPS
+  gpsSS.begin(GPSBaud);
 }
 
 void loop() {
@@ -177,6 +187,14 @@ void outputDebugStatus() {
     Serial.print("Yaw = ");
     Serial.print(getYawAngle());
     Serial.println("*");
+
+    Serial.print("Lat = ");
+    Serial.print(gps.location.lat());
+    Serial.print(", Long = ");
+    Serial.println(gps.location.lng());
+
+    Serial.print("# of GPS Sats = ");
+    Serial.println(gps.satellites.value());
     Serial.println("===============================");
 }
 

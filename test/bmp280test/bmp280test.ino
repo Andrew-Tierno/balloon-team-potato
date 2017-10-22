@@ -24,9 +24,9 @@
 #define BMP_SCK 13
 #define BMP_MISO 12
 #define BMP_MOSI 11 
-#define BMP_CS 10
+#define BMP_CS 15
 
-int led = 13;
+int led = 23;
 
 Adafruit_BMP280 bmp; // I2C
 //Adafruit_BMP280 bmp(BMP_CS); // hardware SPI

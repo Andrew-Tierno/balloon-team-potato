@@ -16,6 +16,7 @@ SoftwareSerial ss(RXPin, TXPin);
 
 void setup()
 {
+  while (!Serial);
   Serial.begin(115200);
   ss.begin(GPSBaud);
 

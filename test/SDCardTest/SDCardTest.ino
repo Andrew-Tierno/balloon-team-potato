@@ -17,7 +17,7 @@
 #define photocellPin 0           // analog 0
 #define tempPin 1                // analog 1
 
-const int chipSelect = 15;
+const int chipSelect = 10;
 
 //RTC_DS1307 RTC; // define the Real Time Clock object
 
@@ -41,6 +41,7 @@ void error(char *str)
 
 void setup() {
   // put your setup code here, to run once:
+  while(!Serial);
   Serial.begin(9600);
 
   Serial.println("Initializing SD Card...");
