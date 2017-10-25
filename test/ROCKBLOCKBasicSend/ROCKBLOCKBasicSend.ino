@@ -106,3 +106,8 @@ void ISBDDiagsCallback(IridiumSBD *device, char c)
   Serial.write(c);
 }
 #endif
+
+bool ISBDCallback() {
+  // Serial.println("Inside callback");
+  return true;
+}
