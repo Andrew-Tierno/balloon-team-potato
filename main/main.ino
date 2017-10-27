@@ -8,6 +8,7 @@
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
 #include <SD.h>
+#include <IridiumSBD.h>
 
 //Data will be outputted every COLLECTION_POINTS * LOOP_DELAY milliseconds
 #define COLLECTION_POINTS 25
@@ -35,6 +36,10 @@ Adafruit_BNO055 bno = Adafruit_BNO055();
 TinyGPSPlus gps;
 SoftwareSerial gpsSS(gpsRX, gpsTX);
 
+//RockBLOCK
+#define IridiumSerial Serial1
+IridiumSBD modem(IridiumSerial);
+int err;
 
 //Data Buffers
 float pressureBuffer[COLLECTION_POINTS];
@@ -49,6 +54,7 @@ float yawBuffer[COLLECTION_POINTS];
 //Housekeeping Variables
 int loopNum;
 bool buffersReady;
+unsigned long startTime;
 
 void setup() {
   Serial.begin(9600);
@@ -61,9 +67,8 @@ void setup() {
   }
   pinMode(heaters, OUTPUT);
   
-
-//>>>>>>> dcdf4817144ccf3eca1ee145283ac59d317f1e8c
   loopNum = 0;
+  startTime = millis();
   buffersReady = false;
   
   if (!bmp.begin()) {  
@@ -77,14 +82,29 @@ void setup() {
     while(1);
   }
   
-//  
   therm.begin();
-//
+  
   // GPS
   gpsSS.begin(GPSBaud);
+
+  // RockBLOCK
+  IridiumSerial.begin(19200);
+  err = modem.begin();
+  if (err != ISBD_SUCCESS)
+  {
+    Serial.print("Begin failed: error ");
+    Serial.println(err);
+    if (err == ISBD_NO_MODEM_DETECTED)
+      Serial.println("No modem detected: check wiring.");
+    return;
+  }
 }
 
 void loop() {
+  if (millis() > startTime + 5*60*1000)  { // every five minutes
+    callComms();
+    startTime = millis();
+  }
   if (loopNum == 0 && buffersReady) {
     digitalWrite(led, HIGH);
     outputDebugStatus();
@@ -243,4 +263,52 @@ void outputDebugStatus() {
     }
 }
 
+// RockBLOCK functions
+int getSRBignalQuality() {
+  int signalQuality = -1;
+  err = modem.getSignalQuality(signalQuality);
+  if (err != ISBD_SUCCESS) {
+    Serial.println("ERROR RECEIVING SIGNAL QUALITY");
+  }
+  return signalQuality;
+}
+
+void callComms() {
+  String message = String("Lat: ") + gps.location.lat() + String(" Lng: ") +  gps.location.lng() + String(" Alt: ") + getAltitude()  + String(" Ext T: ") + getExternalTemp() + String(" Int T: ") + getInternalTemp();
+  char messageBuf[80]; // Plus one for null-terminator!
+  message.toCharArray(messageBuf, 80);
+  
+  err = modem.sendSBDText(messageBuf);
+  if (err == ISBD_SENDRECEIVE_TIMEOUT) {
+    Serial.println("FAILURE TO SEND MESSAGE. TRY AGAIN WITH BETTER VIEW OF SKY.");
+  }
+}
+
+bool ISBDCallback() {
+  if (loopNum == 0 && buffersReady) {
+    digitalWrite(led, HIGH);
+    outputDebugStatus();
+  }
+  else {
+    digitalWrite(led, LOW);
+  }
+
+  handleHeaters();
+  updateBuffers(loopNum);
+
+  loopNum = (loopNum + 1) % COLLECTION_POINTS;
+  if (loopNum == 0) {
+    buffersReady = true;
+  }
+
+  delay(LOOP_DELAY);
+  return true;
+}
+
+// if millis() - lasttime > threshold
+// call rockblock and updated lasttime
+
+
+// gps lat long, altitude, int temp, ext temp, 
+// 
 
