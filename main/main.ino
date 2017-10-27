@@ -7,10 +7,10 @@
 #include <utility/imumaths.h>
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
+#include <SD.h>
 
 //Data will be outputted every COLLECTION_POINTS * LOOP_DELAY milliseconds
 #define COLLECTION_POINTS 25
-#define LOOP_DELAY 30
 #define DEBUG true
 
 //TODO: Get actual values. Should be in celsius.
@@ -26,10 +26,11 @@ int heaters = -1; //TODO: Get actual values
 int gpsRX = 7;
 int gpsTX = 8;
 int GPSBaud = 9600;
+const int chipSelect = 20;
 
-//Sensors
-Adafruit_BMP280 bmp;
-Adafruit_MAX31855 therm(13, 21, 6);
+////Sensors
+Adafruit_BMP280 bmp = Adafruit_BMP280();
+Adafruit_MAX31855 therm(21);
 Adafruit_BNO055 bno = Adafruit_BNO055();
 TinyGPSPlus gps;
 SoftwareSerial gpsSS(gpsRX, gpsTX);
@@ -51,10 +52,13 @@ bool buffersReady;
 
 void setup() {
   Serial.begin(9600);
-  //pinMode(led, OUTPUT);
-//<<<<<<< HEAD
-//  pinMode(gps, INPUT);
-//=======
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB port only
+  }
+  if (!SD.begin(chipSelect)) {
+    Serial.println("Card failed, or not present");
+    return;
+  }
   pinMode(heaters, OUTPUT);
   
 
@@ -72,8 +76,10 @@ void setup() {
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while(1);
   }
+  
+//  
   therm.begin();
-
+//
   // GPS
   gpsSS.begin(GPSBaud);
 }
@@ -82,6 +88,25 @@ void loop() {
   if (loopNum == 0 && buffersReady) {
     digitalWrite(led, HIGH);
     outputDebugStatus();
+    File dataFile = SD.open("datalog.txt", FILE_WRITE);
+  if (dataFile) {
+    String dataString =           String(gps.location.lat())
+                          + "," + String(gps.location.lng())
+                          + "," + String(getAltitude())
+                          + "," + String(getInternalTemp())
+                          + "," + String(getExternalTemp())
+                          + "," + String(getPressure())
+                          + "\n";
+
+    dataFile.println(dataString);
+    dataFile.close();
+    Serial.println(dataString);
+  }
+  else {
+    Serial.println("error opening datalog.txt");
+  }
+    
+    //logData();
   }
   else {
     digitalWrite(led, LOW);
@@ -96,8 +121,6 @@ void loop() {
   }
 
   
-
-  delay(LOOP_DELAY);
 }
 
 void handleHeaters() {
@@ -158,44 +181,66 @@ float getAverage(float list[]) {
   return sum / len;
 }
 
+void logData() {
+  File dataFile = SD.open("datalog.txt", FILE_WRITE);
+  if (dataFile) {
+    String dataString =           String(gps.location.lat())
+                          + "," + String(gps.location.lng())
+                          + "," + String(getAltitude())
+                          + "," + String(getInternalTemp())
+                          + "," + String(getExternalTemp())
+                          + "," + String(getPressure())
+                          + "\n";
+
+    dataFile.println(dataString);
+    dataFile.close();
+    Serial.println(dataString);
+  }
+  else {
+    Serial.println("error opening datalog.txt");
+  }
+}
+
 void outputDebugStatus() {
-    Serial.println("===============================");
-    Serial.print("Internal Temperature = ");
-    Serial.print(getInternalTemp());
-    Serial.println(" *C");
-
-    Serial.print("External Temperature = ");
-    Serial.print(getExternalTemp());
-    Serial.println(" *C");
-
-    Serial.print("Pressure = ");
-    Serial.print(getPressure());
-    Serial.println(" kPa");
-
-    Serial.print("Altitude = ");
-    Serial.print(getAltitude()); 
-    Serial.println(" m");
-
-    Serial.print("Roll = ");
-    Serial.print(getRollAngle());
-    Serial.println("*");
-
-    Serial.print("Pitch = ");
-    Serial.print(getPitchAngle());
-    Serial.println("*");
-
-    Serial.print("Yaw = ");
-    Serial.print(getYawAngle());
-    Serial.println("*");
-
-    Serial.print("Lat = ");
-    Serial.print(gps.location.lat());
-    Serial.print(", Long = ");
-    Serial.println(gps.location.lng());
-
-    Serial.print("# of GPS Sats = ");
-    Serial.println(gps.satellites.value());
-    Serial.println("===============================");
+    if (DEBUG) {
+      Serial.println("===============================");
+      Serial.print("Internal Temperature = ");
+      Serial.print(getInternalTemp());
+      Serial.println(" *C");
+  
+      Serial.print("External Temperature = ");
+      Serial.print(getExternalTemp());
+      Serial.println(" *C");
+  
+      Serial.print("Pressure = ");
+      Serial.print(getPressure());
+      Serial.println(" kPa");
+  
+      Serial.print("Altitude = ");
+      Serial.print(getAltitude()); 
+      Serial.println(" m");
+  
+      Serial.print("Roll = ");
+      Serial.print(getRollAngle());
+      Serial.println("*");
+  
+      Serial.print("Pitch = ");
+      Serial.print(getPitchAngle());
+      Serial.println("*");
+  
+      Serial.print("Yaw = ");
+      Serial.print(getYawAngle());
+      Serial.println("*");
+  
+      Serial.print("Lat = ");
+      Serial.print(gps.location.lat());
+      Serial.print(", Long = ");
+      Serial.println(gps.location.lng());
+  
+      Serial.print("# of GPS Sats = ");
+      Serial.println(gps.satellites.value());
+      Serial.println("===============================");
+    }
 }
 
 
