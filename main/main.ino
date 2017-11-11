@@ -12,7 +12,7 @@
 
 //Data will be outputted every COLLECTION_POINTS * LOOP_DELAY milliseconds
 #define COLLECTION_POINTS 25
-#define DEBUG true
+#define DEBUG false
 
 //TODO: Get actual values. Should be in celsius.
 #define MIN_INTERNAL_TEMP 15
@@ -31,8 +31,8 @@ const int chipSelect = 20;
 
 ////Sensors
 Adafruit_BMP280 bmp = Adafruit_BMP280();
-Adafruit_MAX31855 therm(21);
-Adafruit_BNO055 bno = Adafruit_BNO055();
+//Adafruit_MAX31855 therm(21);
+//Adafruit_BNO055 bno = Adafruit_BNO055();
 TinyGPSPlus gps;
 SoftwareSerial gpsSS(gpsRX, gpsTX);
 
@@ -54,35 +54,38 @@ float yawBuffer[COLLECTION_POINTS];
 //Housekeeping Variables
 int loopNum;
 bool buffersReady;
+bool bmpStarted;
 unsigned long startTime;
 
 void setup() {
   Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
-  }
+//  while (!Serial) {
+//    ; // wait for serial port to connect. Needed for native USB port only
+//  }
   if (!SD.begin(chipSelect)) {
     Serial.println("Card failed, or not present");
     return;
   }
-  pinMode(heaters, OUTPUT);
+  //pinMode(heaters, OUTPUT);
   
   loopNum = 0;
   startTime = millis();
   buffersReady = false;
+
+  bmpStarted = bmp.begin();
   
-  if (!bmp.begin()) {  
-    Serial.println(F("Could not find a valid BMP280 sensor, check wiring!"));
-    while (true);
-  }
-  if(!bno.begin())
-  {
-    /* There was a problem detecting the BNO055 ... check your connections */
-    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
-    while(1);
-  }
+//  if (!bmp.begin()) {  
+//    Serial.println(F("Could not find a valid BMP280 sensor, check wiring!"));
+//    while (true);
+//  }
+//  if(!bno.begin())
+//  {
+//    /* There was a problem detecting the BNO055 ... check your connections */
+//    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
+//    while(1);
+//  }
   
-  therm.begin();
+  //therm.begin();
   
   // GPS
   gpsSS.begin(GPSBaud);
@@ -97,11 +100,19 @@ void setup() {
     if (err == ISBD_NO_MODEM_DETECTED)
       Serial.println("No modem detected: check wiring.");
     return;
+  } else {
+    Serial.println("Connected to Rockblock");
   }
 }
 
 void loop() {
+  smartDelay(50);
+  if (millis() > 5000 && gps.charsProcessed() < 10)
+    Serial.println(F("No GPS data received: check wiring"));
+
+    
   if (millis() > startTime + 5*60*1000)  { // every five minutes
+    Serial.println("About to call comms");
     callComms();
     startTime = millis();
   }
@@ -154,14 +165,23 @@ void handleHeaters() {
 }
 
 void updateBuffers(int loopNum) {
-    internalTempBuffer[loopNum] = bmp.readTemperature(); 
-    externalTempBuffer[loopNum] = therm.readCelsius();
-    pressureBuffer[loopNum] = bmp.readPressure() / 1000;//Readings are in Pa
-    altitudeBuffer[loopNum] = bmp.readAltitude(1013.25);// TODO: this should be adjusted
-    imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
-    rollBuffer[loopNum] = euler.x();
-    pitchBuffer[loopNum] = euler.y();
-    yawBuffer[loopNum] = euler.z();
+    if (bmpStarted) {
+        internalTempBuffer[loopNum] = bmp.readTemperature(); 
+        pressureBuffer[loopNum] = bmp.readPressure() / 1000;//Readings are in Pa
+        altitudeBuffer[loopNum] = bmp.readAltitude(1013.25);// TODO: this should be adjusted
+    }
+    else {
+        internalTempBuffer[loopNum] = 0; 
+        pressureBuffer[loopNum] = 0;//Readings are in Pa
+        altitudeBuffer[loopNum] = 0;// TODO: this should be adjusted
+    }
+  
+    //externalTempBuffer[loopNum] = therm.readCelsius();
+    
+//    imu::Vector<3> euler = bno.getVector(Adafruit_BNO055::VECTOR_EULER);
+//    rollBuffer[loopNum] = euler.x();
+//    pitchBuffer[loopNum] = euler.y();
+//    yawBuffer[loopNum] = euler.z();
 }
 
 float getInternalTemp() {
@@ -264,6 +284,7 @@ void outputDebugStatus() {
 }
 
 // RockBLOCK functions
+
 int getSRBignalQuality() {
   int signalQuality = -1;
   err = modem.getSignalQuality(signalQuality);
@@ -274,20 +295,50 @@ int getSRBignalQuality() {
 }
 
 void callComms() {
-  String message = String("Lat: ") + gps.location.lat() + String(" Lng: ") +  gps.location.lng() + String(" Alt: ") + getAltitude()  + String(" Ext T: ") + getExternalTemp() + String(" Int T: ") + getInternalTemp();
+  String message = String(gps.location.lat()) + "," +  String(gps.location.lng()) + "," + String(getAltitude())  + "," + String(getExternalTemp()) + "," + String(getInternalTemp());
   char messageBuf[80]; // Plus one for null-terminator!
-  message.toCharArray(messageBuf, 80);
+  message.toCharArray(messageBuf, sizeof(messageBuf));
+  Serial.println(messageBuf);
   
+//  err = modem.sendSBDText(messageBuf);
   err = modem.sendSBDText(messageBuf);
   if (err == ISBD_SENDRECEIVE_TIMEOUT) {
     Serial.println("FAILURE TO SEND MESSAGE. TRY AGAIN WITH BETTER VIEW OF SKY.");
+  } else {
+    Serial.println("Message Sent!");
+    Serial.println(err);
   }
 }
 
 bool ISBDCallback() {
+  //Serial.println("In call-back");
+  smartDelay(50);
+  if (millis() > 5000 && gps.charsProcessed() < 10)
+    Serial.println(F("No GPS data received: check wiring"));
+
+    
   if (loopNum == 0 && buffersReady) {
     digitalWrite(led, HIGH);
     outputDebugStatus();
+    File dataFile = SD.open("datalog.txt", FILE_WRITE);
+  if (dataFile) {
+    String dataString =           String(gps.location.lat())
+                          + "," + String(gps.location.lng())
+                          + "," + String(getAltitude())
+                          + "," + String(getInternalTemp())
+                          + "," + String(getExternalTemp())
+                          + "," + String(getPressure())
+                          + "\n";
+
+    dataFile.println(dataString);
+    dataFile.close();
+    Serial.println(dataString);
+  }
+  else {
+    Serial.println("error opening datalog.txt");
+  }
+    
+    //logData();
   }
   else {
     digitalWrite(led, LOW);
@@ -300,8 +351,22 @@ bool ISBDCallback() {
   if (loopNum == 0) {
     buffersReady = true;
   }
+//  if (loopNum == 0 && buffersReady) {
+//    digitalWrite(led, HIGH);
+//    outputDebugStatus();
+//  }
+//  else {
+//    digitalWrite(led, LOW);
+//  }
+//
+//  handleHeaters();
+//  updateBuffers(loopNum);
+//
+//  loopNum = (loopNum + 1) % COLLECTION_POINTS;
+//  if (loopNum == 0) {
+//    buffersReady = true;
+//  }
 
-  delay(LOOP_DELAY);
   return true;
 }
 
@@ -311,4 +376,15 @@ bool ISBDCallback() {
 
 // gps lat long, altitude, int temp, ext temp, 
 // 
+
+
+static void smartDelay(unsigned long ms)
+{
+  unsigned long start = millis();
+  do 
+  {
+    while (gpsSS.available())
+      gps.encode(gpsSS.read());
+  } while (millis() - start < ms);
+}
 
